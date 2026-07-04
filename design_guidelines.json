@@ -1,0 +1,179 @@
+{
+  "app_name": "TaskLocal",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A trustworthy, premium, and warm hyper-local marketplace that feels like a polished native iOS utility, replacing cold corporate blues with inviting terracotta and stone tones.",
+  "color": {
+    "surface": "#FAFAF9",
+    "onSurface": "#1C1917",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#292524",
+    "surfaceTertiary": "#F5F5F4",
+    "onSurfaceTertiary": "#44403C",
+    "surfaceInverse": "#292524",
+    "onSurfaceInverse": "#FAFAF9",
+    "brand": "#C65D47",
+    "brandPrimary": "#C65D47",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#E68D79",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#FCEBE6",
+    "onBrandTertiary": "#8F3D2B",
+    "success": "#4D7C5D",
+    "onSuccess": "#FFFFFF",
+    "warning": "#D99530",
+    "onWarning": "#FFFFFF",
+    "error": "#B94A48",
+    "onError": "#FFFFFF",
+    "info": "#526D82",
+    "onInfo": "#FFFFFF",
+    "border": "#E7E5E4",
+    "borderStrong": "#D6D3D1",
+    "divider": "#F5F5F4"
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical breathing room. Cards are never flush to edges, use 'lg' padding. Stick to single column lists for provider cards.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 1,
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Bottom tab bar (must have a translucent tinted base underneath).",
+      "Sticky headers when scrolling over provider detail pages.",
+      "Hero category cards with photo backdrops."
+    ],
+    "dont's": [
+      "Form inputs, basic list rows, body content.",
+      "Anywhere text becomes illegible."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home (Discovery)",
+      "purpose": "Allow users to instantly find and filter trusted local service providers.",
+      "states": {
+        "loading": "Skeleton UI for hero card and category chips.",
+        "empty": "Illustration of a quiet neighborhood + 'No providers available in your area yet.'",
+        "error": "Message: 'Unable to load local services.' + Retry button."
+      },
+      "layout": "Custom Safe Area header with user location. Prominent search bar. Horizontal scrollable chips for Categories (Home Repairs, EV Charging, Cleaning). Followed by a vertical list of 'Top Rated Providers' using single-column cards filling the horizontal space. Sticky bottom tab bar (glass)."
+    },
+    {
+      "name": "Provider Detail",
+      "purpose": "Build trust by showcasing the provider's stats, reviews, and portfolio.",
+      "states": {
+        "loading": "Spinner in center.",
+        "empty": "N/A",
+        "error": "Message: 'Provider profile unavailable.' + Retry button."
+      },
+      "layout": "Full-bleed hero image at the top with a top-to-bottom gradient scrim (Layer 0: image, Layer 1: linear-gradient, Layer 2: Provider name and rating). Below hero: 'About', 'Services Offered', 'Reviews'. Sticky primary CTA at the bottom ('Book Service') overlapping the scroll view with safe-area clearance."
+    },
+    {
+      "name": "Booking Flow & Checkout",
+      "purpose": "A seamless, multi-step process to finalize scheduling and payment.",
+      "states": {
+        "loading": "Overlay spinner during Stripe processing.",
+        "empty": "N/A",
+        "error": "Inline form errors or Stripe payment failure message."
+      },
+      "layout": "Step 1: Scoping/Notes. Step 2: Date/Time selection (calendar view). Step 3: Checkout. Labels above inputs. Fixed CTA at the bottom inside KeyboardAvoidingView."
+    },
+    {
+      "name": "Bookings History",
+      "purpose": "Track current and past service requests.",
+      "states": {
+        "loading": "Skeleton list rows.",
+        "empty": "Illustration + 'You haven't booked any services yet.'",
+        "error": "Message: 'Could not fetch your bookings.' + Retry button."
+      },
+      "layout": "Sticky glass header with a Segmented Control (Active / Past). Vertical list of cards. Each card displays service type, provider name, date, and a prominent status pill (e.g., Requested, Accepted, En route, Completed)."
+    },
+    {
+      "name": "AI Chat Assistant",
+      "purpose": "Help users describe their problem and get recommended services immediately.",
+      "states": {
+        "loading": "Typing indicator...",
+        "empty": "Welcome message: 'Describe what you need help with.'",
+        "error": "Message: 'Connection lost.' + Retry button."
+      },
+      "layout": "Standard chat interface. Messages from AI in surfaceTertiary, messages from user in brandPrimary. Suggestions displayed as horizontal scrollable chips above the text input."
+    },
+    {
+      "name": "Profile & Dashboard",
+      "purpose": "Manage settings and toggle between Customer and Provider mode.",
+      "states": {
+        "loading": "Spinner in center.",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "List of settings rows with tinted icon containers. Prominent toggle for 'Provider Mode'. In Provider Mode: dashboard shows upcoming jobs, earnings summary, and an 'Available' toggle switch."
+    }
+  ],
+  "images": {
+    "hero_home_repair": {
+      "url": "https://images.pexels.com/photos/8488035/pexels-photo-8488035.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Close-up of exposed plumbing pipes with rustic textures on a construction site wall"
+    },
+    "category_ev_charging": {
+      "url": "https://images.pexels.com/photos/4678065/pexels-photo-4678065.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Public charging station with eco-friendly design for electric vehicles"
+    },
+    "hero_home_cleaning": {
+      "url": "https://images.pexels.com/photos/10567360/pexels-photo-10567360.jpeg",
+      "alt": "A clean and organized home office desk with cleaning products"
+    }
+  },
+  "instructions_to_main_agent": [
+    "NEVER use blues, indigo, or purple. The primary brand color is Terracotta/Rust (#C65D47) with a warm stone-white background (#FAFAF9) to convey trust, warmth, and premium native feel.",
+    "Implement the 'Sticky primary CTA over scrolling content' rule for the 'Book Service' and 'Confirm Booking' screens. The button must be anchored at the bottom outside the scroll view.",
+    "Ensure the Provider Detail hero image uses the MANDATORY gradient-to-dark scrim pattern (Layer 1: expo-linear-gradient from transparent to ≥70% surfaceInverse at bottom) so the white text is completely legible.",
+    "Use Phosphor icons consistently across all screens, adhering to the rule of one weight/style per screen (except the bottom tab bar).",
+    "For cards in the Home list, use a single column layout where width='100%' minus the 'lg' padding. Do not use 48% flex blocks that leave empty space.",
+    "In the Profile/Settings screen, use tinted icon containers for every row (icon inside a brandTertiary rounded square).",
+    "Include responsive logic: although built in React Native Expo, the flex layouts and single column max-widths must adapt gracefully to web view."
+  ],
+  "haptics": {
+    "tab_change": "light",
+    "primary_button_press": "medium",
+    "category_chip_select": "light",
+    "booking_confirm": "success",
+    "provider_mode_toggle": "medium"
+  }
+}
