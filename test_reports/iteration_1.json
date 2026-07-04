@@ -1,0 +1,41 @@
+{
+  "summary": "Comprehensive backend + frontend testing for TaskLocal MVP. 13/15 backend pytest passed (86.7%). All frontend flows verified: login, tabs (Discover/Bookings/Chat/Profile), provider detail, booking creation, checkout screen. Two failures are config/key issues, not code bugs: (1) Emergent LLM key budget exceeded on /api/chat, (2) Stripe placeholder key rejected on /api/payments/checkout.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/chat", "issue": "Returns 500 'AI error: Failed to start streaming completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 0.0, Max budget: 0.0'. EMERGENT_LLM_KEY (sk-emergent-d7c417d1673A3Dd715) has a 0.0 budget cap. Endpoint code itself is correct; needs a funded/valid key.", "priority": "HIGH"},
+      {"endpoint": "POST /api/payments/checkout", "issue": "Returns 400 'Stripe error: Invalid API Key provided: sk_test_****gent'. STRIPE_API_KEY in backend/.env is a placeholder ('sk_test_emergent'), not a valid Stripe test key. Endpoint code correct; needs a real sk_test_... key.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "AI Concierge chat send", "issue": "UI will surface backend 500 when user sends a message (LLM key budget). Message input & suggestion chips render fine.", "affected_testIDs": ["chat-send-button","chat-input"]},
+      {"flow": "Checkout Pay now", "issue": "Pressing Pay now will fail until STRIPE_API_KEY is set to a valid test key. UI displays 'Confirm & pay' screen correctly.", "affected_testIDs": ["pay-now-button"]}
+    ],
+    "design_issues": [
+      {"screen": "Global", "issues": ["Console warns: 'shadow*' style props deprecated (React Native Web), 'props.pointerEvents is deprecated' — non-blocking but should migrate to style.boxShadow / style.pointerEvents to silence deprecation."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_tasklocal.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Provide/replace EMERGENT_LLM_KEY with one that has budget remaining OR verify the current key's budget with Emergent (currently Max budget: 0.0).",
+    "Replace STRIPE_API_KEY placeholder 'sk_test_emergent' in /app/backend/.env with a real Stripe test secret key (sk_test_...) and restart backend.",
+    "Optional: silence deprecated React Native Web props (shadow*, pointerEvents) in theme/styles."
+  ],
+  "critical_code_review_comments": [
+    "server.py exceeds 700 lines (709) — consider splitting into routers (auth, providers, bookings, chat, payments, admin) and a seed module.",
+    "user_to_out(...).dict() uses deprecated Pydantic v1 API — prefer .model_dump() for Pydantic v2.",
+    "/api/chat is documented as non-streaming but internally uses chat.stream_message; works but rename or add /api/chat/simple for clarity.",
+    "/api/payments/checkout falls back to os.environ EXPO_PACKAGER_HOSTNAME when Origin header missing — good; but success_url path '/payment-return' does not exist as an Expo Router route (frontend routes to /checkout/[id]). Consider aligning redirect paths.",
+    "No rate-limiting on /api/auth/login (brute-force risk in prod)."
+  ],
+  "updated_files": ["/app/backend/tests/test_tasklocal.py"],
+  "success_rate": {"backend": "86.7% (13/15)", "frontend": "100% of navigable flows; 0% of AI + Stripe pay-now due to backend config"},
+  "seed_data_creation": "Created TEST_ users via /auth/register and TEST_ bookings via /bookings during pytest run. Also created a 'TEST Biz' provider through /providers/apply. Non-destructive to seeded demo/admin data.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend up at EXPO_PUBLIC_BACKEND_URL. Demo/admin creds seeded on startup. Test file at /app/backend/tests/test_tasklocal.py — run with: pytest /app/backend/tests/ -v. Once EMERGENT_LLM_KEY budget and STRIPE_API_KEY are fixed, test_chat_ai and test_stripe_checkout should pass without further changes.",
+  "rca_of_issue": "1) LLM: emergentintegrations LlmChat routes via litellm proxy which reports Max budget: 0.0 for the provided key — server-side account/budget config, not code. 2) Stripe: STRIPE_API_KEY in /app/backend/.env is the literal string 'sk_test_emergent' which Stripe SDK rejects as invalid. Fix: swap to a real sk_test_... key and `sudo supervisorctl restart backend`."
+}
