@@ -1,16 +1,17 @@
 import os
 import uuid
+import json
 import logging
 import asyncio
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict, Set
 
 import bcrypt
 import jwt
 import httpx
 import stripe
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Request, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Request, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -104,6 +105,55 @@ class ChatIn(BaseModel):
 
 class StripeCheckoutIn(BaseModel):
     booking_id: str
+
+
+class ReviewIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    comment: Optional[str] = None
+
+
+# ---------- WebSocket Manager ----------
+class BookingWSManager:
+    def __init__(self):
+        self.rooms: Dict[str, Set[WebSocket]] = {}
+
+    async def connect(self, booking_id: str, ws: WebSocket):
+        await ws.accept()
+        self.rooms.setdefault(booking_id, set()).add(ws)
+
+    def disconnect(self, booking_id: str, ws: WebSocket):
+        room = self.rooms.get(booking_id)
+        if room:
+            room.discard(ws)
+            if not room:
+                self.rooms.pop(booking_id, None)
+
+    async def broadcast(self, booking_id: str, payload: dict):
+        room = self.rooms.get(booking_id)
+        if not room:
+            return
+        dead = []
+        for ws in list(room):
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(booking_id, ws)
+
+
+ws_manager = BookingWSManager()
+
+
+def compute_eta_minutes(status: str, updated_at: Optional[datetime] = None) -> Optional[int]:
+    """Simple ETA heuristic based on status."""
+    if status == "accepted":
+        return 25
+    if status == "en_route":
+        return 10
+    if status == "in_progress":
+        return 45  # est time to complete
+    return None
 
 
 # ---------- Auth Helpers ----------
@@ -396,8 +446,85 @@ async def update_booking_status(booking_id: str, inp: BookingStatusIn, user=Depe
         raise HTTPException(403, "Forbidden")
     if is_customer and not is_provider_of_booking and inp.status != "cancelled":
         raise HTTPException(403, "Customers can only cancel")
-    await db.bookings.update_one({"booking_id": booking_id}, {"$set": {"status": inp.status, "updated_at": now_utc()}})
+    now = now_utc()
+    await db.bookings.update_one({"booking_id": booking_id}, {"$set": {"status": inp.status, "updated_at": now}})
+    # Broadcast to WS subscribers
+    await ws_manager.broadcast(booking_id, {
+        "type": "status",
+        "booking_id": booking_id,
+        "status": inp.status,
+        "eta_minutes": compute_eta_minutes(inp.status),
+        "updated_at": now.isoformat(),
+    })
     return {"ok": True}
+
+
+@api.get("/bookings/{booking_id}")
+async def get_booking(booking_id: str, user=Depends(get_current_user)):
+    b = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+    if not b:
+        raise HTTPException(404, "Not found")
+    prv = await db.providers.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    is_prv = prv and prv["provider_id"] == b["provider_id"]
+    if b["customer_id"] != user["user_id"] and not is_prv:
+        raise HTTPException(403, "Forbidden")
+    b["eta_minutes"] = compute_eta_minutes(b.get("status", "requested"))
+    # attach provider snapshot
+    prov = await db.providers.find_one({"provider_id": b["provider_id"]}, {"_id": 0})
+    if prov:
+        b["provider"] = {
+            "provider_id": prov["provider_id"],
+            "business_name": prov["business_name"],
+            "image": prov.get("image"),
+            "rating": prov.get("rating"),
+            "hourly_rate": prov.get("hourly_rate"),
+        }
+    return b
+
+
+# ---------- Reviews ----------
+@api.post("/bookings/{booking_id}/review")
+async def submit_review(booking_id: str, inp: ReviewIn, user=Depends(get_current_user)):
+    b = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+    if not b:
+        raise HTTPException(404, "Booking not found")
+    if b["customer_id"] != user["user_id"]:
+        raise HTTPException(403, "Only the customer can review")
+    if b.get("status") != "completed":
+        raise HTTPException(400, "Booking must be completed before reviewing")
+    if await db.reviews.find_one({"booking_id": booking_id}):
+        raise HTTPException(400, "Review already submitted")
+
+    rev = {
+        "review_id": uid("rev"),
+        "booking_id": booking_id,
+        "provider_id": b["provider_id"],
+        "customer_id": user["user_id"],
+        "customer_name": user.get("name", "Anonymous"),
+        "rating": inp.rating,
+        "comment": inp.comment,
+        "created_at": now_utc(),
+    }
+    await db.reviews.insert_one(rev)
+    await db.bookings.update_one({"booking_id": booking_id}, {"$set": {"review_id": rev["review_id"]}})
+
+    # Recompute provider rating average
+    cursor = db.reviews.find({"provider_id": b["provider_id"]}, {"_id": 0, "rating": 1})
+    ratings = [r["rating"] async for r in cursor]
+    if ratings:
+        avg = round(sum(ratings) / len(ratings), 2)
+        await db.providers.update_one(
+            {"provider_id": b["provider_id"]},
+            {"$set": {"rating": avg, "review_count": len(ratings)}},
+        )
+    rev.pop("_id", None)
+    return rev
+
+
+@api.get("/providers/{provider_id}/reviews")
+async def list_reviews(provider_id: str):
+    docs = await db.reviews.find({"provider_id": provider_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return docs
 
 
 # ---------- AI Chat (streaming SSE) ----------
@@ -709,6 +836,63 @@ async def root():
 
 
 app.include_router(api)
+
+
+# ---------- WebSocket: booking live status ----------
+async def _authenticate_ws_token(token: str) -> Optional[dict]:
+    if not token:
+        return None
+    # JWT first
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return await _load_user(payload["user_id"])
+    except Exception:
+        pass
+    # Session token
+    sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if sess:
+        exp = sess.get("expires_at")
+        if exp and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp and exp > now_utc():
+            return await _load_user(sess["user_id"])
+    return None
+
+
+@app.websocket("/api/ws/bookings/{booking_id}")
+async def ws_booking(websocket: WebSocket, booking_id: str, token: str = ""):
+    user = await _authenticate_ws_token(token)
+    if not user:
+        await websocket.close(code=4401)
+        return
+    b = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+    if not b:
+        await websocket.close(code=4404)
+        return
+    prv = await db.providers.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    is_prv = prv and prv["provider_id"] == b["provider_id"]
+    if b["customer_id"] != user["user_id"] and not is_prv:
+        await websocket.close(code=4403)
+        return
+
+    await ws_manager.connect(booking_id, websocket)
+    # send initial snapshot
+    try:
+        await websocket.send_json({
+            "type": "snapshot",
+            "booking_id": booking_id,
+            "status": b.get("status"),
+            "eta_minutes": compute_eta_minutes(b.get("status", "requested")),
+        })
+        while True:
+            # Keep-alive; ignore incoming pings/messages
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        ws_manager.disconnect(booking_id, websocket)
 
 app.add_middleware(
     CORSMiddleware,

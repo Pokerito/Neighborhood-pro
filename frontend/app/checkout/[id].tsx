@@ -86,8 +86,8 @@ export default function Checkout() {
             </View>
             <Text style={styles.bigTitle}>Payment successful</Text>
             <Text style={styles.bigSub}>Your booking is confirmed. The pro will reach out shortly.</Text>
-            <Pressable testID="view-bookings-button" style={styles.primaryBtn} onPress={() => router.replace('/(tabs)/bookings')}>
-              <Text style={styles.primaryBtnText}>View bookings</Text>
+            <Pressable testID="view-bookings-button" style={styles.primaryBtn} onPress={() => router.replace(`/track/${id}`)}>
+              <Text style={styles.primaryBtnText}>Track booking</Text>
             </Pressable>
           </View>
         ) : status === 'cancelled' ? (

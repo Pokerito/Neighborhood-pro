@@ -100,7 +100,7 @@ export default function Bookings() {
             const c = STATUS_COLORS[b.status] || STATUS_COLORS.requested;
             const nxt = nextStatus(b.status);
             return (
-              <View key={b.booking_id} style={styles.card} testID={`booking-${b.booking_id}`}>
+              <Pressable key={b.booking_id} onPress={() => router.push(`/track/${b.booking_id}`)} style={styles.card} testID={`booking-${b.booking_id}`}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <View style={{ flex: 1, marginRight: 10 }}>
                     <Text style={styles.cardTitle}>{b.service}</Text>
@@ -121,6 +121,11 @@ export default function Bookings() {
                 <View style={styles.footer}>
                   <Text style={styles.amount}>${b.total_amount.toFixed(2)}</Text>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {tab === 'customer' && b.status !== 'cancelled' && b.status !== 'completed' && (
+                      <Pressable testID={`track-${b.booking_id}`} style={styles.smallBtnGhost} onPress={() => router.push(`/track/${b.booking_id}`)}>
+                        <Text style={styles.smallBtnGhostText}>Track</Text>
+                      </Pressable>
+                    )}
                     {tab === 'customer' && b.payment_status !== 'paid' && b.status !== 'cancelled' && (
                       <Pressable testID={`pay-${b.booking_id}`} style={styles.smallBtn} onPress={() => router.push(`/checkout/${b.booking_id}`)}>
                         <Text style={styles.smallBtnText}>Pay</Text>
@@ -144,7 +149,7 @@ export default function Bookings() {
                     <Text style={{ color: theme.color.success, fontSize: 11, fontWeight: '700' }}>PAID</Text>
                   </View>
                 )}
-              </View>
+              </Pressable>
             );
           })}
         </ScrollView>

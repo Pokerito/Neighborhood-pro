@@ -11,11 +11,19 @@ import { theme } from '@/src/theme';
 export default function ProviderDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [p, setP] = useState<any>(null);
+  const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      try { setP(await api(`/providers/${id}`)); }
+      try {
+        const [prov, revs] = await Promise.all([
+          api(`/providers/${id}`),
+          api(`/providers/${id}/reviews`).catch(() => []),
+        ]);
+        setP(prov);
+        setReviews(revs);
+      }
       catch (e) { console.warn(e); }
       finally { setLoading(false); }
     })();
@@ -92,25 +100,24 @@ export default function ProviderDetail() {
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Reviews</Text>
-          <View style={styles.reviewCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ fontWeight: '700', color: theme.color.onSurface }}>Sarah M.</Text>
-              <View style={{ flexDirection: 'row', gap: 2 }}>
-                {[1, 2, 3, 4, 5].map((i) => <Ionicons key={i} name="star" size={12} color={theme.color.warning} />)}
-              </View>
+          <Text style={styles.sectionTitle}>Reviews {reviews.length > 0 ? `(${reviews.length})` : ''}</Text>
+          {reviews.length === 0 ? (
+            <View style={styles.reviewCard}>
+              <Text style={{ color: theme.color.muted, fontSize: 13 }}>No reviews yet. Be the first!</Text>
             </View>
-            <Text style={styles.reviewText}>Arrived on time, fixed the issue quickly, super professional. Highly recommend.</Text>
-          </View>
-          <View style={styles.reviewCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ fontWeight: '700', color: theme.color.onSurface }}>Marcus L.</Text>
-              <View style={{ flexDirection: 'row', gap: 2 }}>
-                {[1, 2, 3, 4, 5].map((i) => <Ionicons key={i} name="star" size={12} color={theme.color.warning} />)}
+          ) : reviews.slice(0, 6).map((r) => (
+            <View key={r.review_id} style={styles.reviewCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontWeight: '700', color: theme.color.onSurface }}>{r.customer_name}</Text>
+                <View style={{ flexDirection: 'row', gap: 2 }}>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Ionicons key={i} name="star" size={12} color={i <= r.rating ? theme.color.warning : theme.color.border} />
+                  ))}
+                </View>
               </View>
+              {r.comment ? <Text style={styles.reviewText}>{r.comment}</Text> : null}
             </View>
-            <Text style={styles.reviewText}>Great communication, fair price. Will book again.</Text>
-          </View>
+          ))}
         </View>
       </ScrollView>
 
