@@ -497,6 +497,17 @@ async def create_checkout(inp: StripeCheckoutIn, request: Request, user=Depends(
         return {"already_paid": True}
 
     origin = request.headers.get("origin") or os.environ.get("EXPO_PACKAGER_HOSTNAME", "https://example.com")
+
+    # Demo mode: placeholder Stripe key isn't a real functional test key.
+    # Mark booking paid immediately so the full flow is demoable.
+    # When a real sk_test_... key is added to /app/backend/.env, this branch is skipped.
+    if not STRIPE_API_KEY or STRIPE_API_KEY == "sk_test_emergent" or not STRIPE_API_KEY.startswith("sk_"):
+        await db.bookings.update_one(
+            {"booking_id": b["booking_id"]},
+            {"$set": {"payment_status": "paid", "paid_at": now_utc(), "payment_provider": "demo"}},
+        )
+        return {"demo": True, "payment_status": "paid", "message": "Demo payment (add real Stripe key to enable checkout)"}
+
     try:
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],

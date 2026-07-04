@@ -18,7 +18,7 @@ export default function Checkout() {
     setLoading(true); setErr('');
     try {
       const res = await api('/payments/checkout', { method: 'POST', body: JSON.stringify({ booking_id: id }) });
-      if (res.already_paid) { setStatus('paid'); return; }
+      if (res.already_paid || res.demo || res.payment_status === 'paid') { setStatus('paid'); return; }
       if (Platform.OS === 'web') {
         window.location.href = res.url;
       } else {
